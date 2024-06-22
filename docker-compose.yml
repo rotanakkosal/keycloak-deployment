@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   keycloak:
     image: quay.io/keycloak/keycloak:23.0.6
@@ -8,7 +10,8 @@ services:
       - 443:8443 # Listen to HTTPS on host port 443 and forward to keycloak on 8443
     volumes:
       - "./certs/fullchain.pem:/etc/x509/https/tls.crt"   # Map certificate to container
-      - "./certs/privkey.pem:/etc/x509/https/tls.key"   # Map private key to container   
+      - "./certs/privkey.pem:/etc/x509/https/tls.key"   # Map private key to container
+      - keycloak_data:/opt/jboss/keycloak/standalone/data  # Mount volume for Keycloak data
     environment:
       - KEYCLOAK_USER=admin # Change the username!
       - KEYCLOAK_PASSWORD=admin # Change the password!
@@ -17,19 +20,22 @@ services:
       - KC_HOSTNAME=keycloak.auto-pilot.dev # Set the hostname here
       - KC_HTTPS_CERTIFICATE_FILE=/etc/x509/https/tls.crt
       - KC_HTTPS_CERTIFICATE_KEY_FILE=/etc/x509/https/tls.key
+      - KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz
       - DB_VENDOR="POSTGRES"
       - DB_ADDR="db"
       - DB_DATABASE="keycloak"
       - DB_USER="keycloak"
       - DB_PASSWORD="password"
     command:
-      - start-dev # Start Keycloak in developer mode 
+      - start-dev # Start Keycloak in developer mode
     depends_on:
       - db
     networks:
       - keycloak_network
+
   db:
     image: postgres
+    restart: always
     environment:
       POSTGRES_DB: "keycloak"
       POSTGRES_USER: "keycloak"
@@ -37,7 +43,7 @@ services:
     ports:
       - "5437:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_keycloak:/var/lib/postgresql/data
     networks:
       - keycloak_network
 
@@ -46,5 +52,5 @@ networks:
     driver: bridge
 
 volumes:
-  keycloak_data:
-  postgres_data:
+  keycloak_data:   # Define a volume for Keycloak data
+  postgres_data_keycloak:
