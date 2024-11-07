@@ -1,56 +1,37 @@
-version: '3.8'
-
 services:
-  keycloak:
-    image: quay.io/keycloak/keycloak:23.0.6
-    container_name: keycloak
-    restart: always
-    ports:
-      - 80:8080 # Listen to HTTP on host port 80 and forward to keycloak on 8080
-      - 443:8443 # Listen to HTTPS on host port 443 and forward to keycloak on 8443
+  postgres:
+    image: postgres:15.6
+    container_name: keycloak_db
     volumes:
-      - "./certs/fullchain.pem:/etc/x509/https/tls.crt"   # Map certificate to container
-      - "./certs/privkey.pem:/etc/x509/https/tls.key"   # Map private key to container
-      - keycloak_data:/opt/jboss/keycloak/standalone/data  # Mount volume for Keycloak data
+      - postgres_data:/var/lib/postgresql/data
     environment:
-      - KEYCLOAK_USER=admin # Change the username!
-      - KEYCLOAK_PASSWORD=admin # Change the password!
-      - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=admin
-      - KC_HOSTNAME=keycloak.auto-pilot.dev # Set the hostname here
-      - KC_HTTPS_CERTIFICATE_FILE=/etc/x509/https/tls.crt
-      - KC_HTTPS_CERTIFICATE_KEY_FILE=/etc/x509/https/tls.key
-      - KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz
-      - DB_VENDOR="POSTGRES"
-      - DB_ADDR="db"
-      - DB_DATABASE="keycloak"
-      - DB_USER="keycloak"
-      - DB_PASSWORD="password"
-    command:
-      - start-dev # Start Keycloak in developer mode
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+
+  keycloak_web:
+    image: quay.io/keycloak/keycloak:23.0.7
+    container_name: keycloak_web
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: password
+      # KC_HOSTNAME: 165.22.244.160
+      KC_HOSTNAME: keycloak.kshrd.app
+      KC_HOSTNAME_STRICT_HTTPS: true
+      KC_HTTPS_PORT: 443
+      KC_PROXY: edge
+      KC_FEATURES: scripts,token-exchange,admin-fine-grained-authz
+      KC_LOG_LEVEL: info
+      KC_METRICS_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command: start-dev
     depends_on:
-      - db
-    networks:
-      - keycloak_network
-
-  db:
-    image: postgres
-    restart: always
-    environment:
-      POSTGRES_DB: "keycloak"
-      POSTGRES_USER: "keycloak"
-      POSTGRES_PASSWORD: "password"
+      - postgres
     ports:
-      - "5437:5432"
-    volumes:
-      - postgres_data_keycloak:/var/lib/postgresql/data
-    networks:
-      - keycloak_network
-
-networks:
-  keycloak_network:
-    driver: bridge
-
+      - 8100:8080
 volumes:
-  keycloak_data:   # Define a volume for Keycloak data
-  postgres_data_keycloak:
+  postgres_data:
