@@ -1,56 +1,65 @@
-version: '3.8'
-
 services:
   keycloak:
     image: quay.io/keycloak/keycloak:23.0.6
     container_name: keycloak
     restart: always
     ports:
-      - 80:8080 # Listen to HTTP on host port 80 and forward to keycloak on 8080
-      - 443:8443 # Listen to HTTPS on host port 443 and forward to keycloak on 8443
+      - "80:8080"
+      - "443:8443"
     volumes:
-      - "./certs/fullchain.pem:/etc/x509/https/tls.crt"   # Map certificate to container
-      - "./certs/privkey.pem:/etc/x509/https/tls.key"   # Map private key to container
-      - keycloak_data:/opt/jboss/keycloak/standalone/data  # Mount volume for Keycloak data
+      - ./certs/fullchain.pem:/etc/x509/https/tls.crt:ro
+      - ./certs/privkey.pem:/etc/x509/https/tls.key:ro
     environment:
-      - KEYCLOAK_USER=admin # Change the username!
-      - KEYCLOAK_PASSWORD=admin # Change the password!
-      - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=admin
-      - KC_HOSTNAME=keycloak.auto-pilot.dev # Set the hostname here
-      - KC_HTTPS_CERTIFICATE_FILE=/etc/x509/https/tls.crt
-      - KC_HTTPS_CERTIFICATE_KEY_FILE=/etc/x509/https/tls.key
-      - KC_FEATURES=scripts,token-exchange,admin-fine-grained-authz
-      - DB_VENDOR="POSTGRES"
-      - DB_ADDR="db"
-      - DB_DATABASE="keycloak"
-      - DB_USER="keycloak"
-      - DB_PASSWORD="password"
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: ${KC_HOSTNAME}
+      KC_HTTPS_CERTIFICATE_FILE: /etc/x509/https/tls.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /etc/x509/https/tls.key
+      KC_FEATURES: ${KC_FEATURES}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
     command:
-      - start-dev # Start Keycloak in developer mode
+      - start
+      - --optimized=false
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - keycloak_network
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   db:
-    image: postgres
+    image: postgres:16-alpine
+    container_name: keycloak-db
     restart: always
     environment:
-      POSTGRES_DB: "keycloak"
-      POSTGRES_USER: "keycloak"
-      POSTGRES_PASSWORD: "password"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5437:5432"
+      - "${POSTGRES_HOST_PORT}:5432"
     volumes:
       - postgres_data_keycloak:/var/lib/postgresql/data
     networks:
       - keycloak_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 networks:
   keycloak_network:
     driver: bridge
 
 volumes:
-  keycloak_data:   # Define a volume for Keycloak data
   postgres_data_keycloak:

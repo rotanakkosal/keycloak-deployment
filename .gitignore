@@ -1,0 +1,31 @@
+# Environment variables (contains secrets)
+.env
+
+# TLS certificates and private keys
+certs/
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+
+# Backup files
+*.bk
+*.bak
+*.backup
+*.orig
+
+# Docker
+docker-compose.override.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
